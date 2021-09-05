@@ -8,7 +8,7 @@
 #include "queue.h"
 
 #ifndef EN_SCAN_DEBUG
-#define EN_SCAN_DEBUG 0
+#define EN_SCAN_DEBUG 1
 #endif
 
 #if EN_SCAN_DEBUG

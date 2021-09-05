@@ -25,7 +25,8 @@ MEMORY
 {
     xip_memory  (rx)  : ORIGIN = 0x23000000, LENGTH = 1024K
     itcm_memory (rx)  : ORIGIN = 0x22014000, LENGTH = 16K
-    dtcm_memory (rx)  : ORIGIN = 0x42018000, LENGTH = 32K
+    dtcm_memory (rx)  : ORIGIN = 0x42018000, LENGTH = 16K
+    ram3_memory (!rx) : ORIGIN = 0x4201C000, LENGTH = 16K
     ram_memory  (!rx) : ORIGIN = 0x42020000, LENGTH = 32K
     rsvd_memory (!rx) : ORIGIN = 0x42028000, LENGTH = 1K
     ram2_memory (!rx) : ORIGIN = 0x42028400, LENGTH = (31K - __EM_SIZE)
@@ -245,6 +246,9 @@ SECTIONS
 
     PROVIDE( _heap_start = ORIGIN(ram2_memory) );
     PROVIDE( _heap_size = LENGTH(ram2_memory) );
+
+    PROVIDE( _heap2_start = ORIGIN(ram3_memory) );
+    PROVIDE( _heap2_size = LENGTH(ram3_memory) );
 
 }
 

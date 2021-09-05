@@ -15,6 +15,8 @@
 
 #include "smk_hid_protocol.h"
 
+#include "smk_ble.h"
+
 volatile int current_data_interface =DATA_REPORT1_ID;
 volatile int current_nkro_interface =NKRO_REPORT_ID;
 
@@ -132,6 +134,15 @@ static void smk_usb_hid_commit(smk_usb_hid_type *hid_usb)
     for (uint8_t idx = 0; idx < 16; ++idx) {
         hid_usb->nkro_buf[hid_usb->flag ^ 1][idx] = hid_usb->nkro_buf[hid_usb->flag][idx];
     }
+}
+
+static void smk_ble_hid_commit(smk_usb_hid_type *hid_usb)
+{
+    hid_usb->flag ^= 1;
+    for (uint8_t idx = 0; idx < 8; ++idx) {
+        hid_usb->buf[hid_usb->flag ^ 1][idx] = hid_usb->buf[hid_usb->flag][idx];
+    }
+    smk_ble_hid_notify(hid_usb->buf[hid_usb->flag]);
 }
 static uint32_t times[4]={0};
 void usbd_hid_kb_int_callback(uint8_t ep)
@@ -325,6 +336,44 @@ void smk_usb_hid_daemon_task(void *pvParameters)
 
         case SMK_EVENT_KEYCODE_COMMIT:
             smk_usb_hid_commit(&hid_usb);
+            kb_isupdate=true;
+            HID_DEBUG("[SMK][HID] KeyCode commit\r\n", event.data);
+            break;
+        }
+    }
+}
+
+void smk_ble_hid_daemon_task(void *pvParameters)
+{
+    QueueHandle_t queue = pvParameters;
+    smk_event_type event;
+
+    HID_DEBUG("[SMK][HID] BLE HID daemon start...\r\n");
+
+    for (;;) {
+        xQueueReceive(
+            queue, // xQueue
+            &event, // pvBuffer
+            portMAX_DELAY // xTicksToWait
+        );
+
+        if (event.class != SMK_EVENT_KEYCODE) {
+            continue;
+        }
+
+        switch (event.subclass) {
+        case SMK_EVENT_KEYCODE_ADD:
+            smk_usb_hid_add_key(&hid_usb, (keycode_type)event.data);
+            HID_DEBUG("[SMK][HID] KeyCode %u add\r\n", event.data);
+            break;
+
+        case SMK_EVENT_KEYCODE_REMOVE:
+            smk_usb_hid_remove_key(&hid_usb, (keycode_type)event.data);
+            HID_DEBUG("[SMK][HID] KeyCode %u remove\r\n", event.data);
+            break;
+
+        case SMK_EVENT_KEYCODE_COMMIT:
+            smk_ble_hid_commit(&hid_usb);
             kb_isupdate=true;
             HID_DEBUG("[SMK][HID] KeyCode commit\r\n", event.data);
             break;

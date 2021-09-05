@@ -180,6 +180,7 @@ enum{
 void smk_hid_usb_init();
 
 void smk_usb_hid_daemon_task(void *pvParameters);
+void smk_ble_hid_daemon_task(void *pvParameters);
 
 
 

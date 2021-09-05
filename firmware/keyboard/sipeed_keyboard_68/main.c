@@ -36,9 +36,13 @@
 
 extern uint8_t _heap_start;
 extern uint8_t _heap_size; // @suppress("Type cannot be resolved")
+
+extern uint8_t _heap2_start;
+extern uint8_t _heap2_size;
+
 static HeapRegion_t xHeapRegions[] = {
+    { &_heap2_start, (unsigned int)&_heap2_size}, 
     { &_heap_start, (unsigned int)&_heap_size },
-    { NULL, 0 }, /* Terminates the array. */
     { NULL, 0 }  /* Terminates the array. */
 };
 
@@ -123,7 +127,7 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 
 static void ble_init_task(void *pvParameters)
 {
-    ble_init();
+    smk_ble_init_task();
     vTaskDelete(NULL);
 }
 
@@ -135,8 +139,8 @@ static void usb_init_task(void *pvParameters) //FIXME
 
 int main(void)
 {
-    // static StackType_t ble_init_stack[1024];
-    // static StaticTask_t ble_init_task_h;
+    static StackType_t ble_init_stack[1024];
+    static StaticTask_t ble_init_task_h;
     static StackType_t usb_init_stack[512];
     static StaticTask_t usb_init_task_h;
     static StackType_t rgb_loop_stack[1024];
@@ -145,15 +149,21 @@ int main(void)
     bflb_platform_init(0);
     shell_init();
     MSG("Sipeed Machine Keyboard start...\r\n");
-    // HBN_Set_XCLK_CLK_Sel(HBN_XCLK_CLK_XTAL);
+    HBN_Set_XCLK_CLK_Sel(HBN_XCLK_CLK_XTAL);
 
     vPortDefineHeapRegions(xHeapRegions);
 
     MSG("[SMK] Device init...\r\n");
-    // xTaskCreateStatic(ble_init_task, (char *)"ble_init", sizeof(ble_init_stack) / 4, NULL, 15, ble_init_stack, &ble_init_task_h);
-    xTaskCreateStatic(usb_init_task, (char *)"usb_init", sizeof(usb_init_stack) / 4, NULL, 15, usb_init_stack, &usb_init_task_h);
+    int ble_mode = 1;
+    if(ble_mode) 
+    {
+        xTaskCreateStatic(ble_init_task, (char *)"ble_init", sizeof(ble_init_stack) / 4, NULL, 15, ble_init_stack, &ble_init_task_h);
+    }else{
+        xTaskCreateStatic(usb_init_task, (char *)"usb_init", sizeof(usb_init_stack) / 4, NULL, 15, usb_init_stack, &usb_init_task_h);
+    }
     xTaskCreateStatic(rgb_loop_task, (char *)"rgb_loop", sizeof(rgb_loop_stack) / 4, NULL, 15, rgb_loop_stack, &rgb_loop_task_h);
-
+    // MSG("[SMK] Stack:%d\r\n", (int)uxTaskGetStackHighWaterMark(NULL));
+    MSG("[SMK] Free Heap:%d\r\n", (int)xPortGetFreeHeapSize());
     const smk_keyboard_hardware_type *hardware = smk_keyboard_get_hardware();
     QueueHandle_t queue_keypos = xQueueCreate(
         128,                   // uxQueueLength
@@ -183,16 +193,29 @@ int main(void)
         15,              // uxPriority
         NULL             // pxCreatedTask
     );
-    xTaskCreate(
-        smk_usb_hid_daemon_task, // pxTaskCode
-        "USB HID Task",          // pcName
-        256,                     // usStackDepth
-        queue_keycode,           // pvParameters
-        15,                      // uxPriority
-        NULL                     // pxCreateTask
-    );
+    if(ble_mode){
+        xTaskCreate(
+            smk_ble_hid_daemon_task, // pxTaskCode
+            "BLE HID Task",          // pcName
+            256,                     // usStackDepth
+            queue_keycode,           // pvParameters
+            15,                      // uxPriority
+            NULL                     // pxCreateTask
+        );
+    }
+    else{
+        xTaskCreate(
+            smk_usb_hid_daemon_task, // pxTaskCode
+            "USB HID Task",          // pcName
+            256,                     // usStackDepth
+            queue_keycode,           // pvParameters
+            15,                      // uxPriority
+            NULL                     // pxCreateTask
+        );
+    }
     MSG("[SMK] Start task scheduler...\r\n");
     vTaskStartScheduler();
+    MSG("[SMK] Free Heap:%d\r\n", (int)xPortGetFreeHeapSize());
 
     BL_CASE_SUCCESS;
     while (1) {

@@ -2,8 +2,8 @@ set(BSP_COMMON_DIR ${CMAKE_SOURCE_DIR}/bsp/bsp_common)
 set(TARGET_REQUIRED_LIBS freertos ble usb_stack)
 list(APPEND ADD_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set(TARGET_REQUIRED_SRCS
-                        #  ${CMAKE_CURRENT_LIST_DIR}/ble_peripheral_tp_server.c
-                        #  ${CMAKE_CURRENT_LIST_DIR}/smk_ble.c
+                         ${CMAKE_CURRENT_LIST_DIR}/smk_ble_hog_service.c
+                         ${CMAKE_CURRENT_LIST_DIR}/smk_ble.c
                          ${CMAKE_CURRENT_LIST_DIR}/smk_usb.c
                          ${CMAKE_CURRENT_LIST_DIR}/smk_hid.c
                          ${CMAKE_CURRENT_LIST_DIR}/smk_cdc.c
@@ -33,6 +33,10 @@ endif()
 set(TARGET_REQUIRED_PRIVATE_INCLUDE ${BSP_COMMON_DIR}/usb ${BSP_COMMON_DIR}/spi_sd)
 set(mains main.c)
 set(LINKER_SCRIPT ${CMAKE_CURRENT_LIST_DIR}/bl702_flash_ble.ld)
+add_definitions(-DCONFIG_BT_DEVICE_NAME="Sipeed Keyboard 68")
+add_definitions(-DEN_BLE_DEBUG=1)
+set(CONFIG_BT_DIS_SERVER on)
+add_definitions(-DCONFIG_BT_GATT_DIS_PNP=1)
 generate_bin()
 
 IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
@@ -41,5 +45,6 @@ IF(CMAKE_BUILD_TYPE MATCHES DEBUG)
     add_definitions(-DEN_HID_DEBUG=1)
     add_definitions(-DEN_USB_DEBUG=1)
     add_definitions(-DEN_SCAN_DEBUG=1)
+    add_definitions(-DEN_BLE_DEBUG=1)
 ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
