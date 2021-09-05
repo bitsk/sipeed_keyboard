@@ -44,12 +44,23 @@ static void smk_ble_connected(struct bt_conn *conn, uint8_t err)
     }
     BLE_DEBUG("[BLE] Connected: %s \r\n", addr);
 
+    // int tx_octets = 0x00fb;
+    // int tx_time = 0x0848;
+
+    // err = bt_le_set_data_len(conn, tx_octets, tx_time);
+    // if (!err) {
+    //     BLE_DEBUG("[BLE] ble set data length success\r\n");
+    // } else {
+    //     BLE_DEBUG("[BLE] ble set data length failure, err: %d\r\n", err);
+    // }
+
+
     err = bt_conn_le_param_update(conn, BT_LE_CONN_PARAM(0x0006, 0x000c, 30, 400));
     if (err) {
         BLE_DEBUG("[BLE] Failed to update LE parameters (err %d)\r\n", err);
     }
 
-    if (bt_conn_set_security(conn, BT_SECURITY_L0)) {
+    if (bt_conn_set_security(conn, BT_SECURITY_L2)) {
         BLE_DEBUG("[BLE] Failed to set security\r\n");
     }
 
@@ -116,49 +127,51 @@ static struct bt_conn_cb conn_callbacks = {
 //     BLE_DEBUG("[BLE] Pairing cancelled: %s", log_strdup(addr));
 // }
 
-// static enum bt_security_err auth_pairing_accept(struct bt_conn *conn,
-//                                                 const struct bt_conn_pairing_feat *const feat) {
-//     struct bt_conn_info info;
-//     bt_conn_get_info(conn, &info);
+static enum bt_security_err auth_pairing_accept(struct bt_conn *conn,
+                                                const struct bt_conn_pairing_feat *const feat) {
+    struct bt_conn_info info;
+    bt_conn_get_info(conn, &info);
 
-//     BLE_DEBUG("[BLE] role %d, open? %s", info.role, smk_ble_active_profile_is_open() ? "yes" : "no");
-//     if (info.role == BT_CONN_ROLE_SLAVE && !smk_ble_active_profile_is_open()) {
-//         BLE_DEBUG("[BLE] Rejecting pairing request to taken profile %d", active_profile);
-//         return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
-//     }
+    // BLE_DEBUG("[BLE] role %d, open? %s\r\n", info.role, smk_ble_active_profile_is_open() ? "yes" : "no");
+    // if (info.role == BT_CONN_ROLE_SLAVE && !smk_ble_active_profile_is_open()) {
+    //     BLE_DEBUG("[BLE] Rejecting pairing request to taken profile %d\r\n", active_profile);
+    //     return BT_SECURITY_ERR_PAIR_NOT_ALLOWED;
+    // }
+    BLE_DEBUG("[BLE] auth pairing accept \r\n");
 
-//     return BT_SECURITY_ERR_SUCCESS;
-// };
+    return BT_SECURITY_ERR_SUCCESS;
+};
 
 
-// static void auth_pairing_complete(struct bt_conn *conn, bool bonded) {
-//     struct bt_conn_info info;
-//     char addr[BT_ADDR_LE_STR_LEN];
-//     const bt_addr_le_t *dst = bt_conn_get_dst(conn);
+static void auth_pairing_complete(struct bt_conn *conn, bool bonded) {
+    struct bt_conn_info info;
+    char addr[BT_ADDR_LE_STR_LEN];
+    const bt_addr_le_t *dst = bt_conn_get_dst(conn);
 
-//     bt_addr_le_to_str(dst, addr, sizeof(addr));
-//     bt_conn_get_info(conn, &info);
+    bt_addr_le_to_str(dst, addr, sizeof(addr));
+    bt_conn_get_info(conn, &info);
 
-//     if (info.role != BT_CONN_ROLE_SLAVE) {
-//         BLE_DEBUG("[BLE] SKIPPING FOR ROLE %d", info.role);
-//         return;
-//     }
+    // if (info.role != BT_CONN_ROLE_SLAVE) {
+    //     BLE_DEBUG("[BLE] SKIPPING FOR ROLE %d\r\n", info.role);
+    //     return;
+    // }
 
-//     if (!smk_ble_active_profile_is_open()) {
-//         BLE_DEBUG("[BLE] Pairing completed but current profile is not open: %s", log_strdup(addr));
-//         bt_unpair(BT_ID_DEFAULT, dst);
-//         return;
-//     }
+    // if (!smk_ble_active_profile_is_open()) {
+    //     BLE_DEBUG("[BLE] Pairing completed but current profile is not open: %s\r\n", log_strdup(addr));
+    //     bt_unpair(BT_ID_DEFAULT, dst);
+    //     return;
+    // }
 
-//     set_profile_address(active_profile, dst);
-//     // update_advertising();
-// };
+    BLE_DEBUG("[BLE] Pairing completed open: %s\r\n", log_strdup(addr));
 
-// static struct bt_conn_auth_cb smk_ble_auth_cb_display = {
-//     .pairing_confirm = auth_pairing_accept,
-//     .pairing_complete = auth_pairing_complete,
-//     .cancel = auth_cancel,
-// };
+    // set_profile_address(active_profile, dst);
+    // update_advertising();
+};
+
+static struct bt_conn_auth_cb smk_ble_auth_cb_display = {
+    .pairing_confirm = auth_pairing_accept,
+    .pairing_complete = auth_pairing_complete,
+};
 
 void smk_ble_services_init()
 {
@@ -166,9 +179,9 @@ void smk_ble_services_init()
         isRegister = 1;
         bt_conn_cb_register(&conn_callbacks);
 
-        // bt_conn_auth_cb_register(&smk_ble_auth_cb_display);
+        bt_conn_auth_cb_register(&smk_ble_auth_cb_display);
 
-        // dis_init(0x02, 0xe502, 0xa111, 0x0210); //dis
+        dis_init(0x02, 0xe502, 0xa111, 0x0210); //dis
         smk_hog_service_init();
         
     }
@@ -185,8 +198,8 @@ int smk_ble_start_adv(void)
     struct bt_le_adv_param adv_param = {
         //options:3, connectable undirected, adv one time
         .options = (BT_LE_ADV_OPT_CONNECTABLE | BT_LE_ADV_OPT_USE_NAME | BT_LE_ADV_OPT_ONE_TIME),
-        .interval_min = BT_GAP_ADV_FAST_INT_MIN_3,
-        .interval_max = BT_GAP_ADV_FAST_INT_MAX_3,
+        .interval_min = BT_GAP_ADV_FAST_INT_MIN_2,
+        .interval_max = BT_GAP_ADV_FAST_INT_MAX_2,
     };
 
     char *adv_name = SMK_CONFIG_BLE_DEVICE_NAME; // This name must be the same as adv_name in ble_central

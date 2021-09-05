@@ -14,29 +14,42 @@
 #include "log.h"
 #include "smk_hid.h"
 #include "smk_ble.h"
-enum {
+enum
+{
     HIDS_REMOTE_WAKE = BIT(0),
     HIDS_NORMALLY_CONNECTABLE = BIT(1),
 };
 
-struct hids_info {
+struct hids_info
+{
     uint16_t version; /* version number of base USB HID Specification */
     uint8_t code;     /* country HID Device hardware is localized for. */
     uint8_t flags;
 } __packed;
 
-struct hids_report {
+struct hids_report
+{
     uint8_t id;   /* report id */
     uint8_t type; /* report type */
 } __packed;
 
+struct hid_boot_report_body
+{
+    uint8_t modifiers;
+    uint8_t _unused;
+    uint8_t keys[6];
+} __packed;
+
+static struct hid_boot_report_body keyboard_report_body;
+
 static struct hids_info info = {
-    .version = 0x1101,  // version
-    .code = 0x00,       // country
+    .version = 0x1101, // version
+    .code = 0x00,      // country
     .flags = HIDS_NORMALLY_CONNECTABLE,
 };
 
-enum {
+enum
+{
     HIDS_INPUT = 0x01,
     HIDS_OUTPUT = 0x02,
     HIDS_FEATURE = 0x03,
@@ -57,9 +70,8 @@ static uint8_t ctrl_point;
 static uint8_t output_data;
 static uint8_t protocal_mode = 0x1;
 
-static const uint8_t hid_keyboard_report_desc[HID_KEYBOARD_REPORT_DESC_SIZE] = {
-    STANDERD_KAYBOARD_RD()
-};
+static const uint8_t hid_keyboard_report_desc[HID_KEYBOARD_REPORT_DESC_SIZE + 2] = {
+    STANDERD_KAYBOARD_RD(0x85, 0x01,)}; // page need match hids_report
 // static uint8_t report_map[] = {
 //     0x05, 0x01, /* Usage Page (Generic Desktop Ctrls) */
 //     0x09, 0x02, /* Usage (Mouse) */
@@ -114,13 +126,12 @@ static ssize_t read_report(struct bt_conn *conn,
 }
 
 static ssize_t read_protocolmode(struct bt_conn *conn,
-                           const struct bt_gatt_attr *attr, void *buf,
-                           uint16_t len, uint16_t offset)
+                                 const struct bt_gatt_attr *attr, void *buf,
+                                 uint16_t len, uint16_t offset)
 {
     return bt_gatt_attr_read(conn, attr, buf, len, offset, attr->user_data,
                              sizeof(uint8_t));
 }
-
 
 static void input_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
 {
@@ -132,10 +143,12 @@ static ssize_t read_input_report(struct bt_conn *conn,
                                  const struct bt_gatt_attr *attr, void *buf,
                                  uint16_t len, uint16_t offset)
 {
+    // struct hid_boot_report_body *report_body = &keyboard_report_body;
+    // return bt_gatt_attr_read(conn, attr, buf, len, offset, report_body, sizeof(struct hid_boot_report_body));
     return bt_gatt_attr_read(conn, attr, buf, len, offset, NULL, 0);
 }
 
-static ssize_t write_output_report(struct bt_conn *conn, 
+static ssize_t write_output_report(struct bt_conn *conn,
                                    const struct bt_gatt_attr *attr, void *buf,
                                    uint16_t len, uint16_t offset)
 {
@@ -150,7 +163,8 @@ static ssize_t write_ctrl_point(struct bt_conn *conn,
 {
     uint8_t *value = attr->user_data;
 
-    if (offset + len > sizeof(ctrl_point)) {
+    if (offset + len > sizeof(ctrl_point))
+    {
         return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
     }
 
@@ -171,32 +185,31 @@ static struct bt_gatt_attr attrs[] = {
 
     BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_REPORT,
                            BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-                           BT_GATT_PERM_READ_AUTHEN | BT_GATT_PERM_WRITE_AUTHEN,
+                           BT_GATT_PERM_READ_ENCRYPT,
                            read_input_report, NULL, NULL), // input report
     BT_GATT_CCC(input_ccc_changed,
-                BT_GATT_PERM_READ_AUTHEN | BT_GATT_PERM_WRITE_AUTHEN),  //2902
-    BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
+                BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT), //2902
+    BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ,
                        read_report, NULL, &input), // 2908
 
-    BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_REPORT, 
+    BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_REPORT,
                            BT_GATT_CHRC_READ | BT_GATT_CHRC_WRITE | BT_GATT_CHRC_WRITE_WITHOUT_RESP,
-                           BT_GATT_PERM_READ_AUTHEN | BT_GATT_PERM_WRITE_AUTHEN,
+                           BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT,
                            NULL, write_output_report, &output_data), // output report
     BT_GATT_CCC(NULL,
-                BT_GATT_PERM_READ_AUTHEN | BT_GATT_PERM_WRITE_AUTHEN), // 2902
+                BT_GATT_PERM_READ_ENCRYPT | BT_GATT_PERM_WRITE_ENCRYPT), // 2902
     BT_GATT_DESCRIPTOR(BT_UUID_HIDS_REPORT_REF, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE,
                        read_report, NULL, &output), // 2908
-    
-    
+
     BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_CTRL_POINT,
                            BT_GATT_CHRC_WRITE_WITHOUT_RESP,
                            BT_GATT_PERM_WRITE,
-                           NULL, write_ctrl_point, &ctrl_point), // hid control 
-    BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_PROTOCOL_MODE,
-                           BT_GATT_CHRC_WRITE_WITHOUT_RESP | BT_GATT_CHRC_READ,
-                           BT_GATT_PERM_READ_AUTHEN|BT_GATT_PERM_WRITE_AUTHEN,
-                           read_protocolmode, NULL, &protocal_mode),
-                           
+                           NULL, write_ctrl_point, &ctrl_point), // hid control
+    // BT_GATT_CHARACTERISTIC(BT_UUID_HIDS_PROTOCOL_MODE,
+    //                        BT_GATT_CHRC_WRITE_WITHOUT_RESP | BT_GATT_CHRC_WRITE,
+    //                        BT_GATT_PERM_READ_ENCRYPT|BT_GATT_PERM_WRITE_ENCRYPT,
+    //                        NULL, read_protocolmode, &protocal_mode),
+
 };
 
 // struct hids_remote_key {
@@ -214,9 +227,9 @@ int smk_hog_service_notify(struct bt_conn *conn, uint8_t *keyboard_data)
 {
     struct bt_gatt_attr *attr = &attrs[BT_CHAR_BLE_HID_REPORT_ATTR_VAL_INDEX];
     // struct hids_remote_key *remote_key = NULL;
-    u8_t len = 8, data[8];
-    memcpy(data, keyboard_data, 8);
-    return bt_gatt_notify(conn, attr, data, len);
+    u8_t len = sizeof(keyboard_report_body);
+    memcpy(&keyboard_report_body, keyboard_data, sizeof(keyboard_report_body));
+    return bt_gatt_notify(conn, attr, &keyboard_report_body, len);
 }
 
 struct bt_gatt_service smk_hog_srv = BT_GATT_SERVICE(attrs);
